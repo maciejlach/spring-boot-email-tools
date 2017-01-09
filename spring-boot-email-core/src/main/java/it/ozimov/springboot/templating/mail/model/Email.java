@@ -44,6 +44,7 @@ public interface Email {
         return "";
     }
 
+    //FIXME Release 0.4.0 will fix this bug to have Collection<EmailAttachment>
     Collection<EmailAttachmentImpl> getAttachments();
 
     Charset getEncoding();
@@ -53,5 +54,9 @@ public interface Email {
     Date getSentAt();
 
     void setSentAt(Date sentAt);
+
+    InternetAddress getReceiptTo();
+
+    InternetAddress getDepositionNotificationTo();
 
 }

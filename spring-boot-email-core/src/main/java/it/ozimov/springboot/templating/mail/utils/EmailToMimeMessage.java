@@ -23,7 +23,6 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Component;
 
 import javax.mail.MessagingException;
@@ -41,6 +40,8 @@ import static java.util.Optional.ofNullable;
 @Slf4j
 public class EmailToMimeMessage implements Function<Email, MimeMessage> {
 
+    private static final String EMPTY_STRING = "";
+    
     private JavaMailSender javaMailSender;
 
     @Autowired
@@ -51,51 +52,56 @@ public class EmailToMimeMessage implements Function<Email, MimeMessage> {
     @Override
     public MimeMessage apply(final Email email) {
         final MimeMessage mimeMessage = javaMailSender.createMimeMessage();
-        final MimeMessageHelper messageHelper = new MimeMessageHelper(mimeMessage,
-                fromNullable(email.getEncoding()).or(Charset.forName("UTF-8")).displayName());
+        final boolean isMultipart = nonNull(email.getAttachments()) && !email.getAttachments().isEmpty();
 
         try {
+            final MimeMessageHelperExt messageHelper = new MimeMessageHelperExt(mimeMessage,
+                    isMultipart,
+                    fromNullable(email.getEncoding()).or(Charset.forName("UTF-8")).displayName());
+
             messageHelper.setFrom(email.getFrom());
-            if (ofNullable(email.getReplyTo()).isPresent()) {
+            if (nonNull(email.getReplyTo())) {
                 messageHelper.setReplyTo(email.getReplyTo());
             }
-            if (ofNullable(email.getTo()).isPresent()) {
+            if (nonNull(email.getTo())) {
                 for (final InternetAddress address : email.getTo()) {
                     messageHelper.addTo(address);
                 }
             }
-            if (ofNullable(email.getCc()).isPresent()) {
+            if (nonNull(email.getCc())) {
                 for (final InternetAddress address : email.getCc()) {
                     messageHelper.addCc(address);
                 }
             }
-            if (ofNullable(email.getBcc()).isPresent()) {
+            if (nonNull(email.getBcc())) {
                 for (final InternetAddress address : email.getBcc()) {
                     messageHelper.addBcc(address);
                 }
             }
-            if (ofNullable(email.getAttachments()).isPresent()) {
+            if (isMultipart) {
                 for (final EmailAttachmentImpl attachment : email.getAttachments()) {
-                    try {
-                        messageHelper.addAttachment(attachment.getAttachmentName(),
-                                attachment.getInputStream(), attachment.getContentType().getType());
-                    } catch (IOException e) {
-                        log.error("Error while converting Email to MimeMessage");
-                        throw new EmailConversionException(e);
-                    }
+                    messageHelper.addAttachment(attachment.getAttachmentName(), attachment.getInputStream());
                 }
             }
-            messageHelper.setSubject(ofNullable(email.getSubject()).orElse(""));
-            messageHelper.setText(ofNullable(email.getBody()).orElse(""));
+            messageHelper.setSubject(ofNullable(email.getSubject()).orElse(EMPTY_STRING));
+            messageHelper.setText(ofNullable(email.getBody()).orElse(EMPTY_STRING));
 
             if (nonNull(email.getSentAt())) {
                 messageHelper.setSentDate(email.getSentAt());
             }
+
+            if (nonNull(email.getReceiptTo())) {
+                messageHelper.setHeaderDepositionNotificationTo(email.getReceiptTo().getAddress());
+            }
+
+            if (nonNull(email.getDepositionNotificationTo())) {
+                messageHelper.setHeaderReturnReceipt(email.getDepositionNotificationTo().getAddress());
+            }
+
         } catch (MessagingException e) {
             log.error("Error while converting Email to MimeMessage");
             throw new EmailConversionException(e);
         }
-
 
         return mimeMessage;
     }

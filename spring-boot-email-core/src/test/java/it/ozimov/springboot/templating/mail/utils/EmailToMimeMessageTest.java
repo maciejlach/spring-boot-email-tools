@@ -18,12 +18,14 @@ package it.ozimov.springboot.templating.mail.utils;
 
 import com.google.common.collect.Lists;
 import it.ozimov.springboot.templating.mail.model.Email;
+import it.ozimov.springboot.templating.mail.model.impl.EmailAttachmentImpl;
 import it.ozimov.springboot.templating.mail.model.impl.EmailImpl;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.runners.MockitoJUnitRunner;
+import org.springframework.http.MediaType;
 import org.springframework.mail.javamail.JavaMailSender;
 
 import javax.mail.Address;
@@ -35,26 +37,26 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
 import static java.util.Arrays.asList;
+import static java.util.Objects.nonNull;
 import static java.util.stream.Collectors.toList;
-import static javax.mail.Message.RecipientType.BCC;
-import static javax.mail.Message.RecipientType.CC;
-import static javax.mail.Message.RecipientType.TO;
+import static javax.mail.Message.RecipientType.*;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.everyItem;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isIn;
-import static org.mockito.Mockito.times;
+import static org.hamcrest.Matchers.*;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @RunWith(MockitoJUnitRunner.class)
 public class EmailToMimeMessageTest {
+
+
+    private static final String HEADER_DEPOSITION_NOTIFICATION_TO = "Disposition-Notification-To";
+
+    private static final String HEADER_RETURN_RECEIPT = "Return-Receipt-To";
 
     @Mock
     private JavaMailSender javaMailSender;
@@ -80,19 +82,19 @@ public class EmailToMimeMessageTest {
             throws MessagingException, IOException {
         final List<Address> tos = asList(sentMessage.getRecipients(TO));
         assertThat(tos.get(0), is((Address) (new ArrayList<>(email.getTo()).get(0))));
-        assertThat(tos, everyItem(isIn(toAddress(email.getTo()))));
+        assertThat(tos, everyItem(is(in(toAddress(email.getTo())))));
     }
 
     public static void validateCc(final Email email, final MimeMessage sentMessage)
             throws MessagingException, IOException {
         final List<Address> ccs = asList(sentMessage.getRecipients(CC));
-        assertThat(ccs, everyItem(isIn(toAddress(email.getCc()))));
+        assertThat(ccs, everyItem(is(in(toAddress(email.getCc())))));
     }
 
     public static void validateBcc(final Email email, final MimeMessage sentMessage)
             throws MessagingException, IOException {
         final List<Address> bccs = asList(sentMessage.getRecipients(BCC));
-        assertThat(bccs, everyItem(isIn(toAddress(email.getBcc()))));
+        assertThat(bccs, everyItem(is(in(toAddress(email.getBcc())))));
     }
 
     public static void validateSubject(final Email email, final MimeMessage sentMessage)
@@ -105,21 +107,33 @@ public class EmailToMimeMessageTest {
         assertThat(sentMessage.getContent(), is(email.getBody()));
     }
 
-    public static Email getSimpleMail(InternetAddress from) throws UnsupportedEncodingException {
-        return EmailImpl.builder().from(from)
+    //FIXME In release 1.4.0 must be EmailAttachment
+    public static Email getSimpleMail(InternetAddress from, EmailAttachmentImpl ... emailAttachments) throws UnsupportedEncodingException {
+        EmailImpl.EmailImplBuilder builder = EmailImpl.builder()
+                .from(from)
                 .replyTo(new InternetAddress("tullius.cicero@urbs.aeterna", "Marcus Tullius Cicero"))
-                .to(Lists.newArrayList(new InternetAddress("titus@de-rerum.natura", "Pomponius Attĭcus")))
+                .to(Lists.newArrayList(new InternetAddress("roberto.trunfio@gmail.com", "titus@de-rerum.natura", "Pomponius Attĭcus")))
                 .cc(Lists.newArrayList(new InternetAddress("tito55@de-rerum.natura", "Titus Lucretius Carus"),
                         new InternetAddress("info@de-rerum.natura", "Info Best Seller")))
                 .bcc(Lists.newArrayList(new InternetAddress("caius-memmius@urbs.aeterna", "Caius Memmius")))
+                .depositionNotificationTo(new InternetAddress("caligola@urbs.aeterna", "Gaius Iulius Caesar Augustus Germanicus"))
+                .receiptTo(new InternetAddress("caligola@urbs.aeterna", "Gaius Iulius Caesar Augustus Germanicus"))
                 .subject("Laelius de amicitia")
-                .body(
-                        "Firmamentum autem stabilitatis constantiaeque eius, quam in amicitia quaerimus, fides est.")
-                .encoding(Charset.forName("UTF-8")).build();
+                .body("Firmamentum autem stabilitatis constantiaeque eius, quam in amicitia quaerimus, fides est.")
+                .encoding(Charset.forName("UTF-8"));
+        if(nonNull(emailAttachments)){
+            builder.attachments(Arrays.asList(emailAttachments));
+        }
+        return builder.build();
     }
 
     public static Email getSimpleMail() throws UnsupportedEncodingException {
         return getSimpleMail(new InternetAddress("cicero@mala-tempora.currunt", "Marco Tullio Cicerone"));
+    }
+
+    public static Email getSimpleMailWithAttachments() throws UnsupportedEncodingException {
+        return getSimpleMail(new InternetAddress("cicero@mala-tempora.currunt", "Marco Tullio Cicerone"),
+                getCsvAttachment("test1"), getCsvAttachment("test2"));
     }
 
     private static List<Address> toAddress(final Collection<InternetAddress> internetAddresses) {
@@ -143,10 +157,30 @@ public class EmailToMimeMessageTest {
         validateTo(email, sentMessage);
         validateCc(email, sentMessage);
         validateBcc(email, sentMessage);
+        validateDepositionNotification(email, sentMessage);
+        validateReceipt(email, sentMessage);
         validateSubject(email, sentMessage);
         validateBody(email, sentMessage);
 
-        verify(javaMailSender, times(1)).createMimeMessage();
+        verify(javaMailSender).createMimeMessage();
+    }
+
+    private void validateReceipt(Email email, MimeMessage sentMessage) throws MessagingException {
+        assertThat(sentMessage.getHeader(HEADER_RETURN_RECEIPT)[0], is(email.getReceiptTo().getAddress()));
+    }
+
+    private void validateDepositionNotification(Email email, MimeMessage sentMessage) throws MessagingException {
+        assertThat(sentMessage.getHeader(HEADER_DEPOSITION_NOTIFICATION_TO)[0], is(email.getReceiptTo().getAddress()));
+    }
+
+    //FIXME In release 1.4.0 must be EmailAttachment
+    private static EmailAttachmentImpl getCsvAttachment(String filename) {
+        final String testData = "col1,col2\n1,2\n3,4";
+        final it.ozimov.springboot.templating.mail.model.impl.EmailAttachmentImpl attachment = it.ozimov.springboot.templating.mail.model.impl.EmailAttachmentImpl.builder()
+                .attachmentName(filename+".csv")
+                .attachmentData(testData.getBytes(Charset.forName("UTF-8")))
+                .mediaType(MediaType.TEXT_PLAIN).build();
+        return attachment;
     }
 
 }
