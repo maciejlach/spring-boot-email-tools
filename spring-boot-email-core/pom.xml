@@ -7,13 +7,13 @@
     <parent>
         <groupId>it.ozimov</groupId>
         <artifactId>spring-boot-email-build</artifactId>
-        <version>0.3.8-SNAPSHOT</version>
+        <version>0.6.4-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
     <groupId>it.ozimov</groupId>
     <artifactId>spring-boot-email-core</artifactId>
-    <version>0.3.8-SNAPSHOT</version>
+    <version>0.6.4-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>Spring Boot Email Core</name>
@@ -42,13 +42,33 @@
         <dependency>
             <groupId>org.hibernate</groupId>
             <artifactId>hibernate-validator</artifactId>
-            <version>5.2.4.Final</version>
+            <version>5.3.3.Final</version>
         </dependency>
+
+        <!-- Spring Redis -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-test</artifactId>
-            <version>1.4.2.RELEASE</version>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+        <!-- Embedded Redis -->
+        <dependency>
+            <groupId>it.ozimov</groupId>
+            <artifactId>embedded-redis</artifactId>
+            <version>0.7.0</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-jdbc</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <!-- Security -->
+        <dependency>
+            <groupId>org.owasp.encoder</groupId>
+            <artifactId>encoder</artifactId>
+            <version>1.2.1</version>
+        </dependency>
     </dependencies>
+
 </project>
